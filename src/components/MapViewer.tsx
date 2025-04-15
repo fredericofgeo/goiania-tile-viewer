@@ -15,6 +15,9 @@ import L from 'leaflet';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
+// Import Leaflet Vector Grid for PBF tiles
+import 'leaflet.vectorgrid';
+
 const DefaultIcon = L.icon({
   iconUrl: icon,
   shadowUrl: iconShadow,
@@ -28,6 +31,75 @@ interface Coordinates {
   latitude: number;
   longitude: number;
   zoom: number;
+}
+
+// Component to handle vector tiles
+function VectorTileLayer() {
+  const map = useMap();
+  
+  useEffect(() => {
+    // Generate unique layer ID
+    const layerId = "vector-tile-layer";
+    
+    // Remove existing layer if it exists
+    if (map.hasLayer(layerId)) {
+      map.removeLayer(layerId);
+    }
+    
+    // PBF Vector tile URL for the cadastro.lote layer
+    const vectorTileUrl = 'https://tiles-goiania.geo360.com.br/tiles/cadastro.lote/{z}/{x}/{y}.pbf';
+    
+    // Style for vector features
+    const vectorTileOptions = {
+      rendererFactory: L.canvas.tile,
+      vectorTileLayerStyles: {
+        'cadastro.lote': function(properties: any) {
+          return {
+            fillColor: '#3388ff',
+            fillOpacity: 0.2,
+            color: '#3388ff',
+            weight: 1,
+            opacity: 0.6,
+          };
+        }
+      },
+      interactive: true,
+      minZoom: 10,
+      maxZoom: 22,
+      getFeatureId: function(feature: any) {
+        return feature.properties.id;
+      },
+    };
+    
+    // Create and add vector tile layer
+    const vectorGrid = (L as any).vectorGrid.protobuf(vectorTileUrl, vectorTileOptions);
+    
+    // Add popup with feature properties when clicked
+    vectorGrid.on('click', function(e: any) {
+      if (e.layer && e.layer.properties) {
+        const properties = e.layer.properties;
+        const content = Object.keys(properties)
+          .filter(key => key !== 'id') // Skip id property
+          .map(key => `<b>${key}:</b> ${properties[key] || 'N/A'}`)
+          .join('<br>');
+        
+        L.popup()
+          .setLatLng(e.latlng)
+          .setContent(`<div style="max-height: 200px; overflow-y: auto;">${content}</div>`)
+          .openOn(map);
+      }
+    });
+    
+    vectorGrid.addTo(map);
+    
+    return () => {
+      if (map.hasLayer(vectorGrid)) {
+        map.removeLayer(vectorGrid);
+      }
+    };
+  }, [map]);
+  
+  return null;
 }
 
 // Component to handle map center and zoom changes
@@ -118,12 +190,6 @@ const MapViewer = () => {
     });
   };
 
-  // Generate tile URL for the Goiania map service
-  const getTileUrl = (x: number, y: number, z: number) => {
-    // Format the URL to match the Goiania tiles server
-    return `https://tiles-goiania.geo360.com.br/tiles/${z}/${x}/${y}.png`;
-  };
-
   return (
     <div className="flex flex-col h-full">
       <div className="flex flex-col lg:flex-row gap-4 mb-4 p-4 bg-white rounded-lg shadow">
@@ -182,6 +248,7 @@ const MapViewer = () => {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           />
+          <VectorTileLayer />
           <MapController coordinates={coordinates} />
         </MapContainer>
         
@@ -217,8 +284,8 @@ const MapViewer = () => {
               </p>
             </div>
             <div>
-              <h3 className="font-medium text-sm text-gray-500">Map Type</h3>
-              <p className="text-sm font-mono">OpenStreetMap (Default)</p>
+              <h3 className="font-medium text-sm text-gray-500">Map Layers</h3>
+              <p className="text-sm font-mono">OpenStreetMap + Goiânia Vector Tiles</p>
             </div>
           </div>
         </CardContent>
