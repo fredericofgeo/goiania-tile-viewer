@@ -27,6 +27,21 @@ const MapViewer = () => {
     longitude: -49.327279,
     zoom: 17.15
   });
+  
+  // Force iframe to reload with the new URL
+  const updateMap = (coords: Coordinates) => {
+    if (iframeRef.current) {
+      const url = generateMapUrl(coords);
+      
+      // Use this technique to force iframe to reload even if URL looks the same
+      iframeRef.current.src = 'about:blank';
+      setTimeout(() => {
+        if (iframeRef.current) {
+          iframeRef.current.src = url;
+        }
+      }, 50);
+    }
+  };
 
   // Function to generate the map URL
   const generateMapUrl = (coords: Coordinates) => {
@@ -35,9 +50,7 @@ const MapViewer = () => {
 
   // Update map when coordinates change
   useEffect(() => {
-    if (iframeRef.current) {
-      iframeRef.current.src = generateMapUrl(coordinates);
-    }
+    updateMap(coordinates);
   }, [coordinates]);
 
   // Handle coordinate input change
@@ -157,6 +170,7 @@ const MapViewer = () => {
           src={generateMapUrl(coordinates)}
           className="absolute inset-0 w-full h-full border-0"
           title="Goiania Map Viewer"
+          key={`${coordinates.latitude}-${coordinates.longitude}-${coordinates.zoom}`}
         />
         
         <div className="absolute top-4 right-4 flex flex-col gap-2 bg-white rounded-lg shadow p-2">
