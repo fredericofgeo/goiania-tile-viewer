@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,22 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/components/ui/use-toast';
 import { Minus, Plus, RotateCw, Navigation } from 'lucide-react';
+import { MapContainer, TileLayer, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix for default marker icons in Leaflet with React
+import L from 'leaflet';
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
+
+const DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+});
+
+L.Marker.prototype.options.icon = DefaultIcon;
 
 interface Coordinates {
   latitude: number;
@@ -14,9 +30,19 @@ interface Coordinates {
   zoom: number;
 }
 
+// Component to handle map center and zoom changes
+function MapController({ coordinates }: { coordinates: Coordinates }) {
+  const map = useMap();
+  
+  useEffect(() => {
+    map.setView([coordinates.latitude, coordinates.longitude], coordinates.zoom);
+  }, [coordinates, map]);
+  
+  return null;
+}
+
 const MapViewer = () => {
   const { toast } = useToast();
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [coordinates, setCoordinates] = useState<Coordinates>({
     latitude: -16.667295,
     longitude: -49.327279,
@@ -27,31 +53,6 @@ const MapViewer = () => {
     longitude: -49.327279,
     zoom: 17.15
   });
-  
-  // Force iframe to reload with the new URL
-  const updateMap = (coords: Coordinates) => {
-    if (iframeRef.current) {
-      const url = generateMapUrl(coords);
-      
-      // Use this technique to force iframe to reload even if URL looks the same
-      iframeRef.current.src = 'about:blank';
-      setTimeout(() => {
-        if (iframeRef.current) {
-          iframeRef.current.src = url;
-        }
-      }, 50);
-    }
-  };
-
-  // Function to generate the map URL
-  const generateMapUrl = (coords: Coordinates) => {
-    return `https://tiles-goiania.geo360.com.br/legado.lote_lot.html#${coords.zoom}/${coords.latitude}/${coords.longitude}`;
-  };
-
-  // Update map when coordinates change
-  useEffect(() => {
-    updateMap(coordinates);
-  }, [coordinates]);
 
   // Handle coordinate input change
   const handleInputChange = (
@@ -117,6 +118,12 @@ const MapViewer = () => {
     });
   };
 
+  // Generate tile URL for the Goiania map service
+  const getTileUrl = (x: number, y: number, z: number) => {
+    // Format the URL to match the Goiania tiles server
+    return `https://tiles-goiania.geo360.com.br/tiles/${z}/${x}/${y}.png`;
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex flex-col lg:flex-row gap-4 mb-4 p-4 bg-white rounded-lg shadow">
@@ -165,13 +172,18 @@ const MapViewer = () => {
       </div>
       
       <div className="flex-1 relative rounded-lg shadow overflow-hidden">
-        <iframe
-          ref={iframeRef}
-          src={generateMapUrl(coordinates)}
-          className="absolute inset-0 w-full h-full border-0"
-          title="Goiania Map Viewer"
-          key={`${coordinates.latitude}-${coordinates.longitude}-${coordinates.zoom}`}
-        />
+        <MapContainer
+          center={[coordinates.latitude, coordinates.longitude]}
+          zoom={coordinates.zoom}
+          style={{ height: '100%', width: '100%' }}
+          zoomControl={false}
+        >
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          />
+          <MapController coordinates={coordinates} />
+        </MapContainer>
         
         <div className="absolute top-4 right-4 flex flex-col gap-2 bg-white rounded-lg shadow p-2">
           <Button
@@ -205,10 +217,8 @@ const MapViewer = () => {
               </p>
             </div>
             <div>
-              <h3 className="font-medium text-sm text-gray-500">Map URL</h3>
-              <p className="text-sm font-mono truncate max-w-[300px] md:max-w-[500px]">
-                {generateMapUrl(coordinates)}
-              </p>
+              <h3 className="font-medium text-sm text-gray-500">Map Type</h3>
+              <p className="text-sm font-mono">OpenStreetMap (Default)</p>
             </div>
           </div>
         </CardContent>
